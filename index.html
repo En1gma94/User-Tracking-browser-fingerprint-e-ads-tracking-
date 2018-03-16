@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8">
+<head>
+	<script src="https://www.gstatic.com/firebasejs/4.10.0/firebase.js"></script>
+	<script>
+
+	var config = {
+    	apiKey: "AIzaSyAiWx0A9b3y0u_Q-LOnxdLq5jnJw5k4YWA",
+    	authDomain: "sistemi-intelligenti-internet.firebaseapp.com",
+    	databaseURL: "https://sistemi-intelligenti-internet.firebaseio.com",
+    	projectId: "sistemi-intelligenti-internet",
+    	storageBucket: "sistemi-intelligenti-internet.appspot.com",
+    	messagingSenderId: "503389931119"
+  	};
+  	firebase.initializeApp(config);
+
+  	var database = firebase.database();
+  	
+  	//array dei quadranti dello schermo dell'utente
+  	var local_screen_block = new Array();
+  	//array dei quadranti dello schermo presenti nel db
+	var screen_block_from_db = new Array();
+	//array ottenuto dal merge dei precedenti 2 array
+	var final_screen_block = new Array();
+
+	//variabili utili per generare il pixel
+	var canvas;
+	var ctx;
+	var cw;
+	var ch;
+	var id;
+  	</script>
+  	<script src="js/valve1.js"></script>
+  	<script src="js/valve2.js"></script>
+  	<script src="js/swfobject-2.2.min.js"></script>
+  	<script src="js/evercookie.js"></script>
+  	<script src="js/jquery-1.11.1.min.js"></script>
+  	<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8.18/jquery-ui.min.js"></script>
+  	<script type="text/javascript">
+
+  	//controllo dell'inserimento di nome e cognome dell'utente
+	jQuery(document).ready(function($) {
+
+		$('#submit').click(function(e) {
+			var isValid = true;
+			$('input[type="textbox"]').each(function() {
+				if ($.trim($(this).val()) == '') {
+					isValid = false;
+					$(this).css({
+						"border": "2px solid red",
+						"background": "#FFCECE"
+					});
+				} else {
+					$(this).css({
+						"border": "",
+						"background": ""
+					});
+				}
+			});
+			if (isValid == false) {
+				e.preventDefault();
+				$("#hiddenInformation").show();
+			} else
+				$("#hiddenInformation").hide();
+				writeUserData(document.getElementById('nome').value, document.getElementById('cognome').value);
+			});
+
+		$("#nome").keypress(function() {
+			$("#hiddenInformation").hide();
+			$(this).css({
+				"border": "",
+				"background": ""
+			});
+		});
+		$("#cognome").keypress(function() {
+			$("#hiddenInformation").hide();
+			$(this).css({
+				"border": "",
+				"background": ""
+			});
+		});
+
+		$('#idtag').on('DOMSubtreeModified',function(){
+			var uid = document.getElementById('idtag').textContent;
+			if(uid != '') {
+  				checkFingerprint(uid);
+  			}
+  		})
+	});
+	</script>
+	<script>
+	
+	//funzione che calcola una stringa identificativa della scheda audio
+	function audioFingerPrinting() {
+        try {
+            var audioContext = new (window.AudioContext || window.webkitAudioContext);
+        } catch (e) {
+            return "";
+        }
+
+        var destination = audioContext.destination;
+        var audioFingerPrinting = (audioContext.sampleRate).toString() + '_' + destination.maxChannelCount + "_" + destination.numberOfInputs + '_' + destination.numberOfOutputs + '_' + destination.channelCount + '_' + destination.channelCountMode + '_' + destination.channelInterpretation;
+        return audioFingerPrinting;
+    }
+
+	//funzione che calcola una stringa identificativa dei cores virtuali del processore
+    function virtualCoresFingerPrinting() {
+        return navigator.hardwareConcurrency || "";
+    }
+
+	//funzione che calcola una stringa identificativa della scheda video
+    function gpuFingerPrint() {
+        var canvas = document.createElement('canvas');
+        var webgl;
+        var debugInfo;
+        var vendor;
+        var renderer;
+        
+        try {
+            webgl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        } catch (e) {
+            return "";
+        }
+
+        if (webgl) {
+            debugInfo = webgl.getExtension('WEBGL_debug_renderer_info');
+            vendor = webgl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+            renderer = webgl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+            return vendor + '_' + renderer;
+        }
+    }
+
+	//funzione che calcola una stringa identificativa dei devices multimediali
+    function getMediaDevices() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+            return "";
+        }
+
+        navigator.mediaDevices.enumerateDevices().then(function(devices) {
+            var results = devices.map(function(device){
+                return device.kind + ":" + device.label + " id = " + device.deviceId;
+            });
+            return results.join(",");
+        })
+        .catch(function(err) {
+            return "";
+        });
+    }
+
+	//funzione che calcola una stringa identificativa basata sul rapporto tra la risoluzione dei pixel fisici e la risoluzione dei CSS pixel dello schermo corrente
+    function getPixelRatio() {
+        return window.devicePixelRatio || "";
+    }
+
+	//funzione che calcola una stringa identificativa su quale piattoforma viene eseguito il browser
+    function getPlatform() {
+        return navigator.platform || "";
+    }
+
+	//funzione che calcola una stringa identificativa sulla profondità dei bit del colore per mostrare le immagini
+    function getColorDepth() {
+        var cd = screen.colorDepth;
+        if (cd === 32) {
+           cd = 24;
+        }
+        return cd || "";
+    }
+
+	//funzione che verifica se il browser dell'utente memorizza in modo permanente i dati
+    function getIndexedDb() {
+        try {
+            return !!window.indexedDB;
+        } 
+        catch (e) {
+            return true;
+        }
+    }
+
+	//funzione che verifica se i cookie sono stati attivati nel browser
+    function isEnableCookies() {
+        return navigator.cookieEnabled;
+    }
+
+	//funzione che restituisce il fuso orario
+    function getTimezoneOffset() {
+        return new Date().getTimezoneOffset();
+    }
+
+	//funzione che verifica se nel browser è stata attivato la modalità do-not-track
+    function isDoNotTrack() {
+        var doNotTrack = navigator.doNotTrack || navigator.msDoNotTrack || window.doNotTrack || "";
+        if(doNotTrack == "unspecified") {
+            doNotTrack = "";
+        }
+        return doNotTrack;
+    }
+
+	//funzione che restituisce il sistema operativo e la lingua utilizzata dall'utente
+    function getLanguageAndOS() {
+        var userAgent = navigator.userAgent.toLowerCase();
+
+        var language = navigator.language.substring(0,2);
+
+        var os;
+        if (userAgent.indexOf('windows phone') >= 0) {
+            os = 'Windows Phone'
+        } else if (userAgent.indexOf('win') >= 0) {
+            os = 'Windows'
+        } else if (userAgent.indexOf('android') >= 0) {
+            os = 'Android'
+        } else if (userAgent.indexOf('linux') >= 0) {
+            os = 'Linux'
+        } else if (userAgent.indexOf('iphone') >= 0 || userAgent.indexOf('ipad') >= 0) {
+            os = 'iOS'
+        } else if (userAgent.indexOf('mac') >= 0) {
+            os = 'Mac'
+        } else {
+            os = 'Other'
+        }
+
+        return language  + '_' + os;
+    }
+
+	//funzione che restituisce la risoluzione dello schermo
+    function getAvailableScreenResolution() {
+      var val = (screen.availHeight > screen.availWidth) 
+                ? [screen.availHeight, screen.availWidth] 
+                : [screen.availWidth, screen.availHeight];
+      return val.join("x");
+    }
+
+	//funzione che restituisce l'hashcode a 32 bit di una stringa di input
+    String.prototype.hashCode = function() {
+        var hash = 0, i, chr;
+        if (this.length === 0) return hash;
+        for (i = 0; i < this.length; i++) {
+            chr   = this.charCodeAt(i);
+            hash  = ((hash << 5) - hash) + chr;
+            hash |= 0;
+        }
+        return hash;
+    };
+
+	//funzione che restituisce il fingerprint cross-browser
+    function crossBrowserFingerPrint() {
+        var crossBrowserString = audioFingerPrinting() + '_' + virtualCoresFingerPrinting() + '_' + gpuFingerPrint() + '_' + getAvailableScreenResolution() + '_' + getPixelRatio() + '_' + getColorDepth() + '_' + getTimezoneOffset() + '_' + getPlatform() + '_' + getMediaDevices() + '_' + getIndexedDb() + '_' + isEnableCookies() + '_' + isDoNotTrack() + '_' + getLanguageAndOS();
+        var crossBrowserFingerPrint = crossBrowserString.hashCode();
+        return crossBrowserFingerPrint;
+    }
+
+    	//calcolo dei vari fingerprint con cui può essere tracciato l'utente
+		getFingerPrint('valve1', 'pre');	
+		getFingerPrint('valve2', 'pre');
+		getFingerPrint('evercookie', 'pre');
+		getFingerPrint('pixel', 'pre');
+		getFingerPrint('cross-browser', 'pre');
+
+    	//in base al parametro nell'url avviene la cancellazione dei cookie nelle varie locazioni dello storage
+		var url = window.location.toString();
+		if (url.includes("evercookie")) {
+			deleteEvercookie();
+		}
+		if (url.includes("pixel")) {
+			deletePixel();
+		}
+
+    	//controllo se il fingerprint calcolato in precedenza è presente nel database
+ 		function checkFingerprint(userFingerprint){
+ 			if(userFingerprint !== undefined) {
+ 				firebase.database().ref('/users/' + userFingerprint).once('value').then(function(snapshot) {
+					if(snapshot.val() != null) {
+ 						var queryString = "?para1=" + userFingerprint;
+ 						window.location.href = "return.html" + queryString;
+					}
+				});
+			}
+ 		}
+
+    	//recupero dei dati slezionati dall'utente
+ 		function writeUserData(nome, cognome) {
+        	var tecnica_selezionata;
+        	
+        	if(nome != "" && cognome != ""){
+        		if (document.getElementById('valve1').checked) {
+          			tecnica_selezionata = document.getElementById('valve1').value;
+        		} else if (document.getElementById('valve2').checked) {
+          			tecnica_selezionata = document.getElementById('valve2').value;
+          		} else if (document.getElementById('pixel').checked) {
+          			tecnica_selezionata = document.getElementById('pixel').value;
+          		} else if (document.getElementById('cross-browser').checked) {
+          			tecnica_selezionata = document.getElementById('cross-browser').value;
+          		} else {
+          			tecnica_selezionata = document.getElementById('evercookie').value;
+          		}
+          	getFingerPrint(tecnica_selezionata, 'post', nome, cognome);
+          	}
+         }
+
+    	//memorizza i dati dell'utente e la tecnica di tracciamento con il relativo fingerprint nel db
+      	function storeValueOnDB(nome, cognome, userFingerprint, tecnica_selezionata) {
+      		if(userFingerprint == 'report') {
+      			firebase.database().ref('/mouse/index/').once('value').then(function(snapshot) {
+					snapshot.forEach(function(child) {
+						firebase.database().ref('/mouse/index/' + child.key).remove(function (error) {
+							if (!error) {
+								updateScreenBlock(userFingerprint);
+							}
+						});
+					});
+				});
+      		} else {
+      	    	if (userFingerprint !== undefined) {
+        	  		firebase.database().ref('users/' + userFingerprint).set({
+            			nome: nome,
+            			cognome: cognome,
+            			tecnica: tecnica_selezionata,
+            			tempoInizio: new Date().getTime(),
+            			ads_boolean: 0
+          			});
+      			}
+
+      			firebase.database().ref('/mouse/index/').once('value').then(function(snapshot) {
+					snapshot.forEach(function(child) {
+						firebase.database().ref('/mouse/index/' + child.key).remove(function (error) {
+							if (!error) {
+								updateScreenBlock(userFingerprint);
+							}
+						});
+					});
+				});
+      		}
+        }
+
+    	//restituisce i fingerprint delle varie tecniche e in base al momento dell'invocazione di tale funzione avviene il controllo o il salvataggio dei dati
+ 		function getFingerPrint(tecnica, controllo, nome, cognome) {
+ 			if(tecnica == 'valve1') {
+ 				var valve1 = new Fingerprint();
+ 				if (controllo == 'pre') {
+ 					return checkFingerprint(valve1.get());
+ 				} else {
+ 					return storeValueOnDB(nome, cognome, valve1.get(), tecnica);
+ 				}
+ 			} else if (tecnica == 'valve2') {
+ 				if (controllo == 'pre') {
+					new Fingerprint2().get(function(valve2Fingerprint, components) {
+            			return checkFingerprint(valve2Fingerprint);
+            		});
+            	} else {
+            		new Fingerprint2().get(function(valve2Fingerprint, components) {
+            			return storeValueOnDB(nome, cognome, valve2Fingerprint, tecnica);
+            		});
+            	}
+ 			} else if(tecnica == 'pixel') {
+ 				if (controllo == 'pre') {
+ 					var pixelRGB = localStorage.getItem("pixel");
+ 					if (pixelRGB != null) {
+ 						return checkFingerprint(pixelRGB);
+ 					}
+ 				} else {
+ 					createPixel();
+ 					return storeValueOnDB(nome, cognome, canvas.src, tecnica);
+ 				}
+ 			} else if(tecnica == 'cross-browser') {
+ 				if (controllo == 'pre') {
+ 					return checkFingerprint(crossBrowserFingerPrint());
+ 				} else {
+ 					return storeValueOnDB(nome, cognome, crossBrowserFingerPrint(), tecnica);
+ 				}
+ 			} else {
+ 				var ec = new evercookie();
+ 				var val = '' + Math.floor(Math.random() * 10000000000);
+
+ 				function getCookie(dont) {
+ 					ec.get("uid", function(best, all) {
+ 						document.getElementById('idtag').innerHTML = best;
+						var txt = document.getElementById('cookies');
+						txt.innerHTML = '';
+						for (var item in all)
+							txt.innerHTML += item + ' mechanism: ' + (val == all[item] ? '<b>' + all[item] + '</b>' : all[item]) + '<br>';
+						if (!dont)
+							getCookie(1);
+					}, dont);
+ 				}
+
+            	if (controllo == 'pre') {
+            		setTimeout(getCookie, 300);
+            	} else {
+            		ec.set('uid', val);
+            		storeValueOnDB(nome, cognome, val, tecnica);
+            	}
+ 			}
+ 		}
+
+    	//creazione del pixel
+	 	function createPixel() {
+			canvas = document.getElementById('canvas');
+  			ctx = canvas.getContext('2d');
+	  		cw = canvas.width;
+  			ch = canvas.height;
+  			id = ctx.getImageData(0, 0, 1, 1);
+			ctx.clearRect(0, 0, cw, ch);
+			ctx.clearRect(0,0,500,500);
+			id.data[3] = 255;
+	
+			id.data[0] = 0;
+			id.data[1] = 0;
+			id.data[2] = 0;
+	
+			ctx.lineWidth = 1;
+
+			var r = Math.floor(Math.random() * 256);
+			var g = Math.floor(Math.random() * 256);
+			var b = Math.floor(Math.random() * 256);
+	    	id.data[0] = r;
+		    id.data[1] = g;
+			id.data[2] = b;
+			ctx.beginPath();
+			ctx.strokeStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
+			ctx.stroke();
+			canvas.style.display = "none";
+			canvas.src = 'rgb(' + r + ',' + g + ',' + b + ')';
+			localStorage.setItem("pixel", canvas.src);
+		}
+
+    	//cancellazione del pixel dal browser
+		function deletePixel() {
+			window.localStorage.removeItem('pixel');
+		}
+
+    	//cancellazione dell'evercookie in tutte le locazioni di salvataggio
+ 		function deleteEvercookie() {
+ 			window.name = '';
+ 			window.sessionStorage.removeItem('uid');
+ 			window.localStorage.removeItem('uid');
+ 			indexedDB.deleteDatabase('idb_evercookie');
+ 			var database = window.openDatabase('sqlite_evercookie', '', 'evercookie', 1024 * 1024);
+ 			database.transaction(function (tx) {tx.executeSql('DROP TABLE IF EXISTS cache');});
+ 		}
+
+    	//reindirizzamento dell'utente
+       	function forwardPage(fingerprint) {
+       		if (fingerprint == null) {
+       			window.location.href = "report.html";
+       		} else {
+       			var queryString = "?para1=" + fingerprint;
+        		window.location.href = "images.html" + queryString; 
+       		}
+        }
+	</script>
+	<script type="text/javascript">
+
+		//restituisce la risoluzione dello schermo dell'utente
+		function getScreenDimension() {
+			var size;
+			if (window.innerHeight > window.innerWidth) {
+  				size = {
+  					width: window.innerWidth || document.body.clientWidth,
+  					height: window.innerHeight || document.body.clientHeight
+	  			}
+			}
+			else {
+  				size = {
+	  				width: window.innerHeight || document.body.clientHeight,
+  					height: window.innerWidth || document.body.clientWidth
+  				}
+			}
+			return size;	
+		}
+
+		var dim = getScreenDimension();
+
+		//funzione che suddivide lo schermo in quadranti
+		function createGrid() {
+			var index;
+			var as, bs, ad, bd;
+			for (var i = 0; i<dim.width; i = i+50) {
+				for (var j = 0; j<dim.height; j = j+50) {
+					var temp1 = i+50;
+					var temp2 = j+50;
+					index = {
+						block: "as("+i+","+j+") bs("+i+","+temp2+") bd("+temp1+","+temp2+") ad("+temp1+","+j+")",
+						count: 0
+					}
+					local_screen_block.push(index);
+				}
+			}
+		
+			firebase.database().ref('/mouse/index/').once('value').then(function(snapshot) {
+				if(snapshot.val() != null) {
+					snapshot.forEach(function(child) {
+						for (var i = 0; i < child.val().length; i++) {
+							var block = child.val()[i].block;
+							var count = parseInt(child.val()[i].count);
+						
+							var index = {
+								block: block,
+								count: count
+							}
+							screen_block_from_db.push(index);
+						}
+					});
+					getFinalScreenBlock();
+				} else {
+					pushScreenBlockOnLoad();
+				}
+			});
+		}
+
+		//funzione che effettua il merge tra l'array dei quadranti presenti nel db e quelli dello schermo dell'utente 
+		function getFinalScreenBlock() {
+			if(screen_block_from_db.length < local_screen_block.length) {
+				for (var i = 0; i < local_screen_block.length; i++) {
+					if(isPresentOnDB(local_screen_block[i].block)) {
+						var index = {
+							block: screen_block_from_db[i].block,
+							count: screen_block_from_db[i].count
+						}
+						final_screen_block.push(index);
+					} else {
+						var index = {
+							block: local_screen_block[i].block,
+							count: 0
+						}
+						final_screen_block.push(index);
+					}
+				}
+			} else {
+				for (var i = 0; i < screen_block_from_db.length; i++) {
+					final_screen_block.push(screen_block_from_db[i]);
+				}
+			}
+		}
+
+		//funzione che verifica la presenza di un determinato quadrante nel db
+		function isPresentOnDB(blockOnScreen) {
+			for (var i = 0; i < screen_block_from_db.length; i++) {
+				if(screen_block_from_db[i].block == blockOnScreen){
+					return true;
+				}
+			}
+			return false;
+		}
+
+		//memorizzazione dell'array di merge nel db
+		function pushScreenBlockOnLoad() {
+			let ref = firebase.database().ref('mouse/index/');
+			ref.push(local_screen_block, function(error) {
+				if (!error) {
+					getFinalScreenBlock();
+				}
+			});
+		}
+
+		createGrid();
+	</script>
+	<script>
+
+	var m_pos_x,m_pos_y;
+	window.onmousemove = function(e) { m_pos_x = e.pageX;m_pos_y = e.pageY; }
+	setInterval(function() { getPosition(m_pos_x,m_pos_y); },3000);
+	
+	//individuazione del quadrante in cui il mouse dell'utente si trova
+	function getPosition(x,y) {
+		var as, bs, ad, bd;
+		var cont = 0;
+		var index;
+		for (var i = 0; i<dim.width; i = i+50) {
+			for (var j = 0; j<dim.height; j = j+50) {
+				var temp1 = i+50;
+				var temp2 = j+50;
+				if ((x<i+50 && x>=i) && (y<j+50 && y>=j)) {
+					index = "as("+i+","+j+") bs("+i+","+temp2+") bd("+temp1+","+temp2+") ad("+temp1+","+j+")";
+					checkBlock(index);
+				}
+			}
+		}
+	}
+
+	//funzione che incrementa il contatore di un determinato quadrante
+	function checkBlock(index) {
+		for (var i = 0; i < final_screen_block.length; i++) {
+			if(final_screen_block[i].block == index){
+				final_screen_block[i].count++; 
+			}
+		}
+	}
+
+	//funzione che aggiorna l'array dei quadranti nel db
+	function updateScreenBlock(userFingerprint) {
+		let ref = firebase.database().ref('mouse/index/');
+		
+		ref.push(final_screen_block, function(error) {
+			if (!error) {
+				if(userFingerprint == 'report') {
+					forwardPage();
+				} else {
+					visualizationStat(userFingerprint);
+				}
+			}
+		});
+	}
+
+	var visualizationStatistics = new Array();
+	var visualizationStatistics_from_db = new Array();
+
+	//funzione che individua la fascia oraria e giornaliera in cui l'utente si connette
+	function visualizationStat(userFingerprint) {
+		var data = new Date().toString().replace(/GMT.*/,"");
+
+		var giorno;
+ 		if (data.substring(0,3) == "Mon") {
+ 			giorno = data.substring(0,3).replace(data.substring(0,3), "Lunedì");
+ 		} else if(data.substring(0,3) == "Tue") {
+ 			giorno = data.substring(0,3).replace(data.substring(0,3), "Martedì");
+ 		} else if(data.substring(0,3) == "Wed") {
+ 			giorno = data.substring(0,3).replace(data.substring(0,3), "Mercoledì");
+ 		} else if(data.substring(0,3) == "Thu") {
+ 			giorno = data.substring(0,3).replace(data.substring(0,3), "Giovedì");
+ 		} else if(data.substring(0,3) == "Fri") {
+ 			giorno = data.substring(0,3).replace(data.substring(0,3), "Venerdì");
+ 		} else if(data.substring(0,3) == "Sat") {
+ 			giorno = data.substring(0,3).replace(data.substring(0,3), "Sabato");
+ 		} else {
+ 			giorno = data.substring(0,3).replace(data.substring(0,3), "Domenica");
+ 		}
+
+ 		var ora = data.substring(16,21);
+ 		var oraTemp = parseInt(ora.substring(0,2));
+ 		var fascia_oraria;
+ 		
+ 		if(oraTemp >= 0 && oraTemp <= 6) {
+ 			fascia_oraria = "0-6";
+ 		} else if(oraTemp > 6 && oraTemp <= 12) {
+ 			fascia_oraria = "6-12";
+ 		} else if(oraTemp > 12 && oraTemp <= 18) {
+ 			fascia_oraria = "12-18";
+ 		} else if(oraTemp > 18 && oraTemp <= 24) {
+ 			fascia_oraria = "18-24";
+ 		}
+ 		var giorno_fascia = giorno + "/" + fascia_oraria;
+
+ 		updateDB(giorno_fascia, userFingerprint);
+	}
+
+	//funzione che salva nel db la fascia oraria e giornaliera in cui l'utente si è connesso
+	function updateDB(giorno_fascia, userFingerprint) {
+        firebase.database().ref('/visualization/').once('value').then(function(snapshot) {
+			if(snapshot.val() != null) {
+				snapshot.forEach(function(child) {
+					for (var i = 0; i < child.val().length; i++) {
+						var giorno_fascia = child.val()[i].giorno_fascia;
+						var count = parseInt(child.val()[i].count);
+							
+						var index = {
+							giorno_fascia: giorno_fascia,
+							count: count
+						}
+						visualizationStatistics_from_db.push(index);
+					}
+				});
+			}
+			checkElement(giorno_fascia);
+			firebase.database().ref('/visualization').remove(function (error) {
+				if (!error) {
+					pushArrayInDB(userFingerprint);
+				}
+			});
+		});	
+	}
+
+	//funzione che incrementa il contatore di una determinata fascia oraria
+	function checkElement(giorno_fascia) {
+		for (var i = 0; i < visualizationStatistics_from_db.length; i++) {
+			if(visualizationStatistics_from_db[i].giorno_fascia == giorno_fascia){
+				visualizationStatistics_from_db[i].count++;
+				return;
+			}
+		}
+		var index = {
+        	giorno_fascia: giorno_fascia,
+        	count: 1
+        }
+        visualizationStatistics_from_db.push(index);
+	}
+
+	//funzione che salva nel db la fascia oraria e giornaliera in cui l'utente si è connesso
+	function pushArrayInDB(userFingerprint) {
+		let ref = firebase.database().ref('visualization/');
+		ref.push(visualizationStatistics_from_db, function(error) {
+			if (!error) {
+				forwardPage(userFingerprint);
+			}
+		});
+	}
+</script>
+  <title>Progetto User Tracking</title>
+</head>
+<body>
+
+	<h1 align="middle">BENVENUTO NELLA DIMOSTRAZIONE DI USER TRACKING</h1>
+
+    <div id="form">
+    	<table width="50%" border="1" align="center"
+			style="background-color: rgb(149, 255, 171)">
+			<tr height="50">
+				<td valign="middle" align="middle">Nome</td>
+				<td align="middle"><input type="textbox" placeholder="nome"
+					id="nome" /><br /></td>
+			</tr>
+			<tr height="50">
+				<td valign="middle" align="middle">Cognome</td>
+				<td align="middle"><input type="textbox" placeholder="cognome"
+					id="cognome" /><br /></td>
+			</tr>
+			<tr height="50">
+				<td valign="middle" align="middle">Tecnica</td>
+				<td align="middle">
+					Canvas fingerprint versione 1<input type="radio" id="valve1" name="tecnica" value="valve1" checked><br/><br/>
+					Canvas fingerprint versione 2<input type="radio" id="valve2" name="tecnica" value="valve2"><br/><br/>
+					Evercookie<input type="radio" id="evercookie" name="tecnica" value="evercookie"><br/><br/>
+					Pixel<input type="radio" id="pixel" name="tecnica" value="pixel"><br/><br/>
+					Cross-browser fingerprint<input type="radio" id="cross-browser" name="tecnica" value="cross-browser"><br/>
+				</td>
+			</tr>
+			<tr height="40">
+				<td colspan="2" align="center">
+					<button id="submit">Submit</button>
+				</td>
+			</tr>
+		</table>
+			<br/><br/>
+		  	<button onclick="storeValueOnDB('report')" style="float: right;">Vai alla pagina di report</button>
+    </div>
+    <span id='idtag' style="display: none;"></span>
+    <div id='cookies' style="display: none;"></div>
+    <canvas id="canvas" width="1" height="1">
+</body>
+</html>

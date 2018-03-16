@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8">
+<head>
+	<script src="https://www.gstatic.com/firebasejs/4.10.0/firebase.js"></script>
+	<title>Bentornato</title>
+	<script>
+
+	var config = {
+    	apiKey: "AIzaSyAiWx0A9b3y0u_Q-LOnxdLq5jnJw5k4YWA",
+    	authDomain: "sistemi-intelligenti-internet.firebaseapp.com",
+    	databaseURL: "https://sistemi-intelligenti-internet.firebaseio.com",
+    	projectId: "sistemi-intelligenti-internet",
+    	storageBucket: "sistemi-intelligenti-internet.appspot.com",
+    	messagingSenderId: "503389931119"
+  	};
+  	firebase.initializeApp(config);
+
+  	var database = firebase.database();
+
+  	//array dei quadranti dello schermo dell'utente
+  	var local_screen_block = new Array();
+  	//array dei quadranti dello schermo presenti nel db
+	var screen_block_from_db = new Array();
+	//array ottenuto dal merge dei precedenti 2 array
+	var final_screen_block = new Array();
+
+	//array ottenuto dalla geolocalizzazione dal db
+	var geolocation_from_db = new Array();
+
+	var contFingerprint = 0;
+  	</script>
+  	<script language="JavaScript" src="http://www.geoplugin.net/javascript.gp" type="text/javascript"></script>
+  	<script src="js/valve1.js"></script>
+  	<script src="js/valve2.js"></script>
+  	<script src="js/swfobject-2.2.min.js"></script>
+  	<script src="js/evercookie.js"></script>
+  	<script src="js/jquery-1.11.1.min.js"></script>
+  	<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8.18/jquery-ui.min.js"></script>
+	<script type="text/javascript">
+		jQuery(document).ready(function($) {
+
+			$('#idtag').on('DOMSubtreeModified',function(){
+				var uid = document.getElementById('idtag').textContent;
+				if(uid != '') {
+  					checkFingerprint(uid);
+  				}
+  			})
+		});
+	</script>
+	<script type="text/javascript">
+		var url = window.location.toString();
+		var fingerprint = url.replace(/.*=/,"");
+		var visualized;
+
+	//funzione che calcola una stringa identificativa della scheda audio
+	function audioFingerPrinting() {
+        try {
+            var audioContext = new (window.AudioContext || window.webkitAudioContext);
+        } catch (e) {
+            return "";
+        }
+
+        var destination = audioContext.destination;
+        var audioFingerPrinting = (audioContext.sampleRate).toString() + '_' + destination.maxChannelCount + "_" + destination.numberOfInputs + '_' + destination.numberOfOutputs + '_' + destination.channelCount + '_' + destination.channelCountMode + '_' + destination.channelInterpretation;
+        return audioFingerPrinting;
+    }
+
+	//funzione che calcola una stringa identificativa dei cores virtuali del processore
+    function virtualCoresFingerPrinting() {
+        return navigator.hardwareConcurrency || "";
+    }
+
+	//funzione che calcola una stringa identificativa dei cores virtuali del processore
+    function gpuFingerPrint() {
+        var canvas = document.createElement('canvas');
+        var webgl;
+        var debugInfo;
+        var vendor;
+        var renderer;
+        
+        try {
+            webgl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        } catch (e) {
+            return "";
+        }
+
+        if (webgl) {
+            debugInfo = webgl.getExtension('WEBGL_debug_renderer_info');
+            vendor = webgl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+            renderer = webgl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+            return vendor + '_' + renderer;
+        }
+    }
+
+	//funzione che calcola una stringa identificativa dei devices multimediali
+    function getMediaDevices() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+            return "";
+        }
+
+        navigator.mediaDevices.enumerateDevices().then(function(devices) {
+            var results = devices.map(function(device){
+                return device.kind + ":" + device.label + " id = " + device.deviceId;
+            });
+            return results.join(",");
+        })
+        .catch(function(err) {
+            return "";
+        });
+    }
+
+	//funzione che calcola una stringa identificativa basata sul rapporto tra la risoluzione dei pixel fisici e la risoluzione dei CSS pixel dello schermo corrente
+    function getPixelRatio() {
+        return window.devicePixelRatio || "";
+    }
+
+	//funzione che calcola una stringa identificativa su quale piattoforma viene eseguito il browser
+    function getPlatform() {
+        return navigator.platform || "";
+    }
+
+	//funzione che calcola una stringa identificativa sulla profondità dei bit del colore per mostrare le immagini
+    function getColorDepth() {
+        var cd = screen.colorDepth;
+        if (cd === 32) {
+           cd = 24;
+        }
+        return cd || "";
+    }
+
+	//funzione che verifica se il browser dell'utente memorizza in modo permanente i dati
+    function getIndexedDb() {
+        try {
+            return !!window.indexedDB;
+        } 
+        catch (e) {
+            return true;
+        }
+    }
+
+	//funzione che verifica se i cookie sono stati attivati nel browser
+    function isEnableCookies() {
+        return navigator.cookieEnabled;
+    }
+
+	//funzione che restituisce il fuso orario
+    function getTimezoneOffset() {
+        return new Date().getTimezoneOffset();
+    }
+
+	//funzione che verifica se nel browser è stata attivato la modalità do-not-track
+    function isDoNotTrack() {
+        var doNotTrack = navigator.doNotTrack || navigator.msDoNotTrack || window.doNotTrack || "";
+        if(doNotTrack == "unspecified") {
+            doNotTrack = "";
+        }
+        return doNotTrack;
+    }
+
+	//funzione che restituisce il sistema operativo e la lingua utilizzata dall'utente
+    function getLanguageAndOS() {
+        var userAgent = navigator.userAgent.toLowerCase();
+
+        var language = navigator.language.substring(0,2);
+
+        var os;
+        if (userAgent.indexOf('windows phone') >= 0) {
+            os = 'Windows Phone'
+        } else if (userAgent.indexOf('win') >= 0) {
+            os = 'Windows'
+        } else if (userAgent.indexOf('android') >= 0) {
+            os = 'Android'
+        } else if (userAgent.indexOf('linux') >= 0) {
+            os = 'Linux'
+        } else if (userAgent.indexOf('iphone') >= 0 || userAgent.indexOf('ipad') >= 0) {
+            os = 'iOS'
+        } else if (userAgent.indexOf('mac') >= 0) {
+            os = 'Mac'
+        } else {
+            os = 'Other'
+        }
+
+        return language  + '_' + os;
+    }
+
+	//funzione che restituisce la risoluzione dello schermo
+    function getAvailableScreenResolution() {
+      var val = (screen.availHeight > screen.availWidth) 
+                ? [screen.availHeight, screen.availWidth] 
+                : [screen.availWidth, screen.availHeight];
+      return val.join("x");
+    }
+
+	//funzione che restituisce l'hashcode a 32 bit di una stringa di input
+    String.prototype.hashCode = function() {
+        var hash = 0, i, chr;
+        if (this.length === 0) return hash;
+        for (i = 0; i < this.length; i++) {
+            chr   = this.charCodeAt(i);
+            hash  = ((hash << 5) - hash) + chr;
+            hash |= 0;
+        }
+        return hash;
+    };
+
+	//funzione che restituisce il fingerprint cross-browser
+    function crossBrowserFingerPrint() {
+        var crossBrowserString = audioFingerPrinting() + '_' + virtualCoresFingerPrinting() + '_' + gpuFingerPrint() + '_' + getAvailableScreenResolution() + '_' + getPixelRatio() + '_' + getColorDepth() + '_' + getTimezoneOffset() + '_' + getPlatform() + '_' + getMediaDevices() + '_' + getIndexedDb() + '_' + isEnableCookies() + '_' + isDoNotTrack() + '_' + getLanguageAndOS();
+        var crossBrowserFingerPrint = crossBrowserString.hashCode();
+        return crossBrowserFingerPrint;
+    }
+
+    	//calcolo dei vari fingerprint con cui può essere tracciato l'utente
+    	getFingerPrint('valve1');	
+		getFingerPrint('valve2');
+		getFingerPrint('evercookie');
+		getFingerPrint('pixel');
+		getFingerPrint('cross-browser');
+
+    	//controllo se il fingerprint calcolato in precedenza è presente nel database
+    	function checkFingerprint(userFingerprint) {
+      		if(userFingerprint.toString() == fingerprint && userFingerprint !== undefined) {
+        		firebase.database().ref('/users/' + userFingerprint).once('value').then(function(snapshot) {
+          			if(snapshot.val() == null && contFingerprint == 5) {
+            			window.location.href = "error.html";
+          			}
+        		});
+    		} else {
+        		contFingerprint++;
+      		}
+   		}
+
+    	//restituisce i fingerprint delle varie tecniche e in base al momento dell'invocazione di tale funzione avviene il controllo o il salvataggio dei dati
+   		function getFingerPrint(tecnica) {
+ 			if(tecnica == 'valve1') {
+ 				var valve1 = new Fingerprint();
+ 				return checkFingerprint(valve1.get());
+ 			} else if (tecnica == 'valve2') {
+				new Fingerprint2().get(function(valve2Fingerprint, components) {
+            		return checkFingerprint(valve2Fingerprint);
+            	});
+ 			} else if(tecnica == 'pixel') {
+ 				var pixelRGB = localStorage.getItem("pixel");
+ 				if (pixelRGB != null) {
+ 					return checkFingerprint(pixelRGB);
+ 				}
+ 			} else if (tecnica == 'cross-browser') {
+        		var cross_browser = crossBrowserFingerPrint();
+        		return checkFingerprint(cross_browser);
+         	} else {
+ 				var ec = new evercookie();
+ 				var val = '' + Math.floor(Math.random() * 10000000000);
+
+ 				function getCookie(dont) {
+ 					ec.get("uid", function(best, all) {
+ 						document.getElementById('idtag').innerHTML = best;
+						var txt = document.getElementById('cookies');
+						txt.innerHTML = '';
+						for (var item in all)
+							txt.innerHTML += item + ' mechanism: ' + (val == all[item] ? '<b>' + all[item] + '</b>' : all[item]) + '<br>';
+						if (!dont)
+							getCookie(1);
+					}, dont);
+ 				}
+            	setTimeout(getCookie, 300);
+ 			}
+ 		}
+
+		//prende dal db i dati relativi ad un determinato utente
+		firebase.database().ref('/users/' + fingerprint).once('value').then(function(snapshot) {
+			if(snapshot.val() != null) {
+				firebase.database().ref('users/' + fingerprint).update({
+        			tempoFine: new Date().getTime()
+        		});
+        		visualized = snapshot.val().ads_boolean;
+
+ 				document.getElementById("welcome").innerHTML = "Bentornato " + snapshot.val().nome + " " + snapshot.val().cognome;
+
+				var data = snapshot.val().timestamp.replace(/GMT.*/,"");
+
+				var giorno;
+ 				if (data.substring(0,3) == "Mon") {
+ 					giorno = data.substring(0,3).replace(data.substring(0,3), "Lunedì");
+ 				} else if(data.substring(0,3) == "Tue") {
+ 					giorno = data.substring(0,3).replace(data.substring(0,3), "Martedì");
+ 				} else if(data.substring(0,3) == "Wed") {
+ 					giorno = data.substring(0,3).replace(data.substring(0,3), "Mercoledì");
+ 				} else if(data.substring(0,3) == "Thu") {
+ 					giorno = data.substring(0,3).replace(data.substring(0,3), "Giovedì");
+ 				} else if(data.substring(0,3) == "Fri") {
+ 					giorno = data.substring(0,3).replace(data.substring(0,3), "Venerdì");
+ 				} else if(data.substring(0,3) == "Sat") {
+ 					giorno = data.substring(0,3).replace(data.substring(0,3), "Sabato");
+ 				} else {
+ 					giorno = data.substring(0,3).replace(data.substring(0,3), "Domenica");
+ 				}
+
+ 				var mese;
+ 				if (data.substring(4,7) == "Jan") {
+ 					mese = data.substring(4,7).replace(data.substring(4,7), "Gennaio");
+ 				} else if(data.substring(4,7) == "Feb") {
+ 					mese = data.substring(4,7).replace(data.substring(4,7), "Febbraio");
+ 				} else if(data.substring(4,7) == "Mar") {
+ 					mese = data.substring(4,7).replace(data.substring(4,7), "Marzo");
+ 				} else if(data.substring(4,7) == "Apr") {
+ 					mese = data.substring(4,7).replace(data.substring(4,7), "Aprile");
+ 				} else if(data.substring(4,7) == "May") {
+ 					mese = data.substring(4,7).replace(data.substring(4,7), "Maggio");
+ 				} else if(data.substring(4,7) == "Jun") {
+ 					mese = data.substring(4,7).replace(data.substring(4,7), "Giugno");
+ 				} else if(data.substring(4,7) == "Jul") {
+ 					mese = data.substring(4,7).replace(data.substring(4,7), "Luglio");
+ 				} else if(data.substring(4,7) == "Aug") {
+ 					mese = data.substring(4,7).replace(data.substring(4,7), "Agosto");
+ 				} else if(data.substring(4,7) == "Sep") {
+ 					mese = data.substring(4,7).replace(data.substring(4,7), "Settembre");
+ 				} else if(data.substring(4,7) == "Oct") {
+ 					mese = data.substring(4,7).replace(data.substring(4,7), "Ottobre");
+ 				} else if(data.substring(4,7) == "Nov") {
+ 					mese = data.substring(4,7).replace(data.substring(4,7), "Novembre");
+ 				} else {
+ 					mese = data.substring(4,7).replace(data.substring(4,7), "Dicembre");
+ 				}
+
+ 				var giorno_mese = data.substring(8,10);
+ 				var ora = data.substring(16,21);
+
+ 				var tecnica;
+ 				if (snapshot.val().tecnica == 'valve1') {
+ 					tecnica =  'canvas fingerprint versione 1';
+ 				} else if (snapshot.val().tecnica == 'valve2') {
+ 					tecnica =  'canvas fingerprint versione 2';
+ 				} else if (snapshot.val().tecnica == 'pixel') {
+ 					tecnica =  'pixel';
+ 				}	else if (snapshot.val().tecnica == 'cross-browser') {
+ 					tecnica =  'cross-browser fingerprint';
+ 				} else {
+ 					tecnica =  'evercookie';
+ 				}
+
+
+ 				if(snapshot.val().immagini != null){
+ 					firebase.database().ref('/users/' + fingerprint + '/immagini').once('value').then(function(snap) {
+
+   						document.getElementById("history").appendChild(document.createTextNode(giorno + " " + giorno_mese + " " + mese + " alle ore " + ora + " sei stato tracciato con la tecnica " + tecnica + " e hai selezionato le seguenti opere"));
+   						document.getElementById("history").appendChild(document.createElement('br'));
+   						document.getElementById("history").appendChild(document.createElement('br'));
+
+						snap.forEach(function(child) {
+ 							child.val().forEach(function(element){
+ 								createImage(element);
+ 							});
+  						});
+ 					});
+				} else {
+ 					document.getElementById("history").appendChild(document.createTextNode(giorno + " " + giorno_mese + " " + mese + " alle ore " + ora + " sei stato tracciato con la tecnica " + snapshot.val().tecnica + " e non hai selezionato alcuna opera"));
+ 				}
+
+ 				var tempo = (snapshot.val().tempoFine - snapshot.val().tempoInizio)/1000;
+ 				var secondiTemp = (tempo % 60).toString();
+ 				var secondi = secondiTemp.replace(/\..*/,"");
+ 				var minutiTemp = (tempo / 60).toString();
+ 				var minuti = minutiTemp.replace(/\..*/,"");
+ 				var tempoTotale;
+
+ 				if (minuti > 1) {
+ 					tempoTotale = minuti + ' minuti e ' + secondi + ' secondi';
+ 				} else {
+ 					tempoTotale = secondi + ' secondi';
+ 				}
+
+ 				document.getElementById("info").appendChild(document.createTextNode('Sei rimasto nel sito per un totale di ' + tempoTotale));
+ 				
+ 				if(snapshot.val().info != null) {
+ 					firebase.database().ref('/users/' + fingerprint + '/info').once('value').then(function(snap) {
+ 						document.getElementById("info").appendChild(document.createElement('br'));
+ 						document.getElementById("info").appendChild(document.createTextNode("Hai utilizzato un calcolatore " + snap.val().operating_system + " con il linguaggio " + snap.val().language +  " su un browser " + snap.val().browser + " mediante una connessione modem " + snap.val().connection));
+ 					});
+ 				}
+
+ 				document.getElementById("deleteUserDataOnDB").style.display = '';
+   				document.getElementById("selectImage").style.display = '';
+			}
+				if(visualized == 0) {
+   					firebase.database().ref('/ads').once('value').then(function(snapshot) {
+   						if(snapshot.val() != null) {
+   							var totalVisualizations = snapshot.val().total_visualizations+1;
+   							firebase.database().ref('/ads').update({
+   								total_visualizations: totalVisualizations
+	   						});
+   						} else {
+   							firebase.database().ref('/ads').update({
+   								total_visualizations: 1
+   							});
+   						}
+   					});
+   				}
+			});
+
+    	//funzione che mostra le ultime immagini selezionate dall'utente
+		function createImage(image){
+			var img = document.createElement("img");
+    		img.src = image;
+    		img.width = 200;
+    		img.height = 200;
+
+    		document.getElementById("history").appendChild(img);
+		}
+
+		//funzione che cancella i dati dell'utente dal db quando decide di cancellarsi
+		function deleteUserDataOnDB() {
+			firebase.database().ref('/users/' + fingerprint).remove();
+
+			firebase.database().ref('/mouse/return/').once('value').then(function(snapshot) {
+				snapshot.forEach(function(child) {
+					firebase.database().ref('/mouse/return/' + child.key).remove(function (error) {
+						if (!error) {
+							updateScreenBlock('deleteUserDataOnDB');
+						}
+					});
+				});
+			});
+		}
+
+		//funzione che cancella le immagini precedentemente selezionate dell'utente nel db quando decide di sceglierne altre
+		function selectImage(){
+			firebase.database().ref('/users/' + fingerprint + '/immagini').remove();
+			firebase.database().ref('/users/' + fingerprint + '/info').remove();
+
+			firebase.database().ref('/mouse/return/').once('value').then(function(snapshot) {
+				snapshot.forEach(function(child) {
+					firebase.database().ref('/mouse/return/' + child.key).remove(function (error) {
+						if (!error) {
+							updateScreenBlock('selectImage');
+						}
+					});
+				});
+			});
+		}
+
+    	//reindirizzamento dell'utente
+		function forwardPage(tipo){
+			if(tipo == 'deleteUserDataOnDB') {
+				if (document.getElementById("history").textContent.includes("evercookie")) {
+					var queryString = "?para1=evercookie";
+					window.location.href = "index.html" + queryString;
+				} else if (document.getElementById("history").textContent.includes("pixel")) {
+					var queryString = "?para1=pixel";
+					window.location.href = "index.html" + queryString;
+				} else {
+					window.location.href = "index.html";
+				}
+			} else if(tipo == 'ads') {
+				if(visualized == 0) {
+					firebase.database().ref('/users/' + fingerprint).update({
+   						ads_boolean: 1
+   					});
+				}
+				firebase.database().ref('/ads').once('value').then(function(snapshot) {
+   					if(snapshot.val().hit != null) {
+   						if(visualized == 0) {
+   							var hit = snapshot.val().hit+1;
+   							firebase.database().ref('/ads').update({
+   								hit: hit
+   							});
+   						}
+   					} else {
+   						firebase.database().ref('/ads').update({
+   							hit: 1
+   						});
+  					}
+  					window.open('http://umanistici.lms.uniroma3.it/rm3ben/', '_blank');
+   				});
+			} else {
+ 				var queryString = "?para1=" + fingerprint;
+				window.location.href = "images.html" + queryString;
+			}
+		}
+	</script>
+	<script type="text/javascript">
+
+		//restituisce la risoluzione dello schermo dell'utente
+		function getScreenDimension() {
+			var size;
+			if (window.innerHeight > window.innerWidth) {
+  				size = {
+  					width: window.innerWidth || document.body.clientWidth,
+  					height: window.innerHeight || document.body.clientHeight
+	  			}
+			}
+			else {
+  				size = {
+	  				width: window.innerHeight || document.body.clientHeight,
+  					height: window.innerWidth || document.body.clientWidth
+  				}
+			}
+			return size;	
+		}
+
+		var dim = getScreenDimension();
+
+		//funzione che suddivide lo schermo in quadranti
+		function createGrid() {
+			var index;
+			var as, bs, ad, bd;
+			for (var i = 0; i<dim.width; i = i+50) {
+				for (var j = 0; j<dim.height; j = j+50) {
+					var temp1 = i+50;
+					var temp2 = j+50;
+					index = {
+						block: "as("+i+","+j+") bs("+i+","+temp2+") bd("+temp1+","+temp2+") ad("+temp1+","+j+")",
+						count: 0
+					}
+					local_screen_block.push(index);
+				}
+			}
+		
+			firebase.database().ref('/mouse/return/').once('value').then(function(snapshot) {
+				if(snapshot.val() != null) {
+					snapshot.forEach(function(child) {
+						for (var i = 0; i < child.val().length; i++) {
+							var block = child.val()[i].block;
+							var count = parseInt(child.val()[i].count);
+						
+							var index = {
+								block: block,
+								count: count
+							}
+							screen_block_from_db.push(index);
+						}
+					});
+					getFinalScreenBlock();
+				} else {
+					pushScreenBlockOnLoad();
+				}
+			});
+		}
+
+		//funzione che effettua il merge tra l'array dei quadranti presenti nel db e quelli dello schermo dell'utente 
+		function getFinalScreenBlock() {
+			if(screen_block_from_db.length < local_screen_block.length) {
+				for (var i = 0; i < local_screen_block.length; i++) {
+					if(isPresentOnDB(local_screen_block[i].block)) {
+						var index = {
+							block: screen_block_from_db[i].block,
+							count: screen_block_from_db[i].count
+						}
+						final_screen_block.push(index);
+					} else {
+						var index = {
+							block: local_screen_block[i].block,
+							count: 0
+						}
+						final_screen_block.push(index);
+					}
+				}
+			} else {
+				for (var i = 0; i < screen_block_from_db.length; i++) {
+					final_screen_block.push(screen_block_from_db[i]);
+				}
+			}
+		}
+
+		//funzione che verifica la presenza di un determinato quadrante nel db
+		function isPresentOnDB(blockOnScreen) {
+			for (var i = 0; i < screen_block_from_db.length; i++) {
+				if(screen_block_from_db[i].block == blockOnScreen){
+					return true;
+				}
+			}
+			return false;
+		}
+
+		//memorizzazione dell'array di merge nel db
+		function pushScreenBlockOnLoad() {
+			let ref = firebase.database().ref('mouse/return/');
+			ref.push(local_screen_block, function(error) {
+				if (!error) {
+					getFinalScreenBlock();
+				}
+			});
+		}
+
+		createGrid();
+	</script>
+	<script>
+
+	var m_pos_x,m_pos_y;
+	window.onmousemove = function(e) { m_pos_x = e.pageX;m_pos_y = e.pageY; }
+	setInterval(function() { getPosition(m_pos_x,m_pos_y); },3000);
+
+	//individuazione del quadrante in cui il mouse dell'utente si trova
+	function getPosition(x,y) {
+		var as, bs, ad, bd;
+		var cont = 0;
+		var index;
+		for (var i = 0; i<dim.width; i = i+50) {
+			for (var j = 0; j<dim.height; j = j+50) {
+				var temp1 = i+50;
+				var temp2 = j+50;
+				if ((x<i+50 && x>=i) && (y<j+50 && y>=j)) {
+					index = "as("+i+","+j+") bs("+i+","+temp2+") bd("+temp1+","+temp2+") ad("+temp1+","+j+")";
+					checkBlock(index);
+				}
+			}
+		}
+	}
+
+	//funzione che incrementa il contatore di un determinato quadrante
+	function checkBlock(index) {
+		for (var i = 0; i <final_screen_block.length; i++) {
+			if(final_screen_block[i].block == index){
+				final_screen_block[i].count++; 
+			}
+		}
+	}
+
+	//funzione che aggiorna l'array dei quadranti nel db
+	function updateScreenBlock(tipo) {
+		let ref = firebase.database().ref('mouse/return/');
+		ref.push(final_screen_block, function(error) {
+			if (!error) {
+				checkGeolocation(tipo);
+			}
+		});
+	}
+
+	//funzione che recupera i dati sulla geolocalizzazione dell'utente
+	function checkGeolocation(tipo) {
+		var citta = geoplugin_city();
+		var regione = geoplugin_region();
+		var nazione = geoplugin_countryName();
+		var continente = geoplugin_continentCode();
+		var loc = citta + ", " + regione + ", " + nazione + ", " + continente;
+
+		updateDB(loc, tipo);
+	}
+
+	//funzione che recupera dal db i dati sulla geolocalizzazione dell'utente
+	function updateDB(location, tipo) {
+        firebase.database().ref('/position/').once('value').then(function(snapshot) {
+			if(snapshot.val() != null) {
+				snapshot.forEach(function(child) {
+					for (var i = 0; i < child.val().length; i++) {
+						var geolocation = child.val()[i].geolocation;
+						var count = parseInt(child.val()[i].count);
+							
+						var index = {
+							geolocation: geolocation,
+							count: count
+						}
+						geolocation_from_db.push(index);
+					}
+				});
+			}
+			checkElement(location);
+			firebase.database().ref('/position').remove(function (error) {
+				if (!error) {
+					pushArrayInDB(tipo);
+				}
+			});
+		});	
+	}
+
+	//funzione che incrementa il contatore sulla geolocalizzazione dell'utente
+	function checkElement(index) {
+		for (var i = 0; i < geolocation_from_db.length; i++) {
+			if(geolocation_from_db[i].geolocation == index){
+				geolocation_from_db[i].count++;
+				return;
+			}
+		}
+		var position = {
+        	geolocation: index,
+        	count: 1
+        }
+        geolocation_from_db.push(position);
+	}
+
+	//funzione che salva nel db i dati sulla geolocalizzazione dell'utente
+	function pushArrayInDB(tipo) {
+		let ref = firebase.database().ref('position/');
+		ref.push(geolocation_from_db, function(error) {
+			if (!error) {
+				forwardPage(tipo);
+			}
+		});
+	}
+</script>
+</head>
+<body>
+	<h2>
+		<p id="welcome" align="center"></p>
+	</h2>
+	<hr>
+		<p id="history" align="center"></p>
+		<p id="info" align="center"></p>
+	</hr>
+	<hr>
+		<button id="deleteUserDataOnDB" onclick="deleteUserDataOnDB()" style="float: left; display: none;">Cancella i dati immessi in precedenza</button>
+		<button id="selectImage" onclick="selectImage()" style="float: right; display: none;">Scegli nuove immagini</button>
+	</hr>
+	<br/><br/>
+	<div align="center">
+		<img src="img/studi_umanistici.png" alt="Beni Culturali" onclick="forwardPage('ads')">
+	</div>
+	<span id='idtag' style="display: none;"></span>
+	<div id='cookies' style="display: none;"></div>
+</body>
+</html>

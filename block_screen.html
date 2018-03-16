@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8">
+<title>Quadranti dello schermo</title>
+<head>
+<script src="https://www.gstatic.com/firebasejs/4.10.0/firebase.js"></script>
+<style type="text/css">
+	body {
+		margin: 0; 
+       	padding: 0
+    }
+
+    #myCanvas { 
+    	position: absolute; 
+     	width: 100%; 
+     	height: 100%; 
+     	overflow: hidden
+    }
+</style>
+<script>
+
+	var config = {
+    	apiKey: "AIzaSyAiWx0A9b3y0u_Q-LOnxdLq5jnJw5k4YWA",
+    	authDomain: "sistemi-intelligenti-internet.firebaseapp.com",
+    	databaseURL: "https://sistemi-intelligenti-internet.firebaseio.com",
+    	projectId: "sistemi-intelligenti-internet",
+    	storageBucket: "sistemi-intelligenti-internet.appspot.com",
+    	messagingSenderId: "503389931119"
+  	};
+  	firebase.initializeApp(config);
+
+  	var database = firebase.database();
+</script>
+<script type="text/javascript">
+	var url = window.location.toString();
+	var key = url.replace(/.*=/,"");
+
+	var resultArray_from_db = new Array();
+
+	firebase.database().ref('/mouse/' + key + '/').once('value').then(function(snapshot) {
+		if(snapshot.val() != null) {
+			snapshot.forEach(function(child) {
+				child.val().forEach(function(element){
+					if(element.count > 0) {
+						resultArray_from_db.push(element);
+					}
+ 				});
+			});
+			drawBlockScreen();
+		}
+	});
+
+	//funzione che disegna i quadranti dello schermo con il relativo contatore
+	function drawBlockScreen() {
+		console.log(resultArray_from_db);
+		var canvas = document.getElementById("myCanvas");
+		canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+		for(var i = 0; i < resultArray_from_db.length; i++) {
+			var ctx = canvas.getContext("2d");
+			var temp = resultArray_from_db[i].block.toString().replace(/\).*/,"").replace(/.*\(/,"");
+			var variable = temp.split(",");
+			ctx.beginPath();
+			ctx.lineWidth="2";
+			ctx.strokeStyle="red";
+			ctx.rect(parseInt(variable[0]),parseInt(variable[1]),50,50);
+			ctx.font = '20px san-serif';
+			ctx.textBaseline = 'middle';
+			ctx.fillText(resultArray_from_db[i].count,20 + parseInt(variable[0]),25 + parseInt(variable[1]));
+			ctx.stroke();
+		}
+	}
+</script>
+</head>
+<body>
+<canvas id="myCanvas"></canvas>
+</body>
+</html>

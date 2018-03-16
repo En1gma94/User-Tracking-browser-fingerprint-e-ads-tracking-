@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8">
+<head>
+	<script src="https://www.gstatic.com/firebasejs/4.10.0/firebase.js"></script>
+	<script>
+
+	var config = {
+    	apiKey: "AIzaSyAiWx0A9b3y0u_Q-LOnxdLq5jnJw5k4YWA",
+    	authDomain: "sistemi-intelligenti-internet.firebaseapp.com",
+    	databaseURL: "https://sistemi-intelligenti-internet.firebaseio.com",
+    	projectId: "sistemi-intelligenti-internet",
+    	storageBucket: "sistemi-intelligenti-internet.appspot.com",
+    	messagingSenderId: "503389931119"
+  	};
+  	firebase.initializeApp(config);
+
+  	var database = firebase.database();
+  	</script>
+  	<script
+	src="https://maps.googleapis.com/maps/api/js?v=3.exp&sensor=false&key=AIzaSyAJoskTbQgfXe3BaYJeDMQKYZktEPzqkmA"></script>
+	<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+	<script type="text/javascript">
+		//array delle statistiche della pubblicità dal db
+		var ads_from_db = new Array();
+		//array delle immagini dal db
+		var images_from_db = new Array();
+		//array dei quadranti della pagina images dal db
+		var mouseImages_from_db = new Array();
+		//array dei quadranti della pagina index dal db
+		var mouseIndex_from_db = new Array();
+		//array dei quadranti della pagina return dal db
+		var mouseReturn_from_db = new Array();
+		//array della geolocalizzazione dal db
+		var position_from_db = new Array();
+		//array delle visualizzazioni e delle fascie dal db
+		var visualization_from_db = new Array();
+
+		var resultArrayImages = new Array();
+		var resultArrayIndex = new Array();
+		var resultArrayReturn = new Array();
+
+		var barsVisualization;
+
+		function initArray() {
+			retrieveDataFromDB('ads');
+			retrieveDataFromDB('images');
+			retrieveDataFromDB('mouse');
+			retrieveDataFromDB('position');
+			retrieveDataFromDB('visualization');
+		}
+
+		//funzione che effettua il retrieve dei dati dal db
+		function retrieveDataFromDB(tabella) {
+			firebase.database().ref('/' + tabella + '/').once('value').then(function(snapshot) {
+				if(snapshot.val() != null) {
+					snapshot.forEach(function(child) {
+						var index = {};
+
+						if(tabella == 'ads') {
+							index[child.key + ''] = child.val();
+							ads_from_db.push(index);
+						} else {
+							if(tabella == 'mouse'){
+								retrieveDataMouseFromDB(tabella, child.key);
+							} else {
+								if(tabella == 'images') {
+									for (var i = 0; i < child.val().length; i++) {
+										var index = {
+											count: child.val()[i].count,
+											opera: child.val()[i].opera
+										}
+										images_from_db.push(index);
+									}
+								} else if(tabella == 'position') {
+									for (var i = 0; i < child.val().length; i++) {
+										var index = {
+											count: child.val()[i].count,
+											geolocation: child.val()[i].geolocation
+										}
+										position_from_db.push(index);
+									}
+								} else {
+									for (var i = 0; i < child.val().length; i++) {
+										var index = {
+											count: child.val()[i].count,
+											giorno_fascia: child.val()[i].giorno_fascia
+										}
+										visualization_from_db.push(index);
+									}
+								}
+							}
+						}
+					});
+					if(tabella == 'ads')  {
+						detailPageAds();
+					} else if(tabella == 'images') {
+						detailPageImages();
+					} else if(tabella == 'position') {
+						initMap();
+					} else if(tabella == 'visualization') {
+						google.charts.load("current", {packages:["corechart"]});
+						google.charts.setOnLoadCallback(drawChart);
+					}
+				}
+			});
+		}
+
+		//funzione che crea l'istogramma
+		function drawChart() {
+			var data = new google.visualization.DataTable();
+    		data.addColumn('string', 'Giorno / Fascia Oraria');
+    		data.addColumn('number', 'Visitatori');
+    		
+    		for(var i = 0; i < visualization_from_db.length; i++) {
+      			var dataTemp = visualization_from_db[i].giorno_fascia.split("/");
+      			var dataFormat = dataTemp[0] + "\n" + "ore: " + dataTemp[1];
+      			data.addRows([
+      				[dataFormat,visualization_from_db[i].count]
+      			]);
+    		}
+
+    		var options = {
+          		title: "",
+          		legend: { position: 'right', maxLines: 2 },
+          		titlePosition: 'none',
+          		chartArea:{left:25,top:20}
+        	};
+
+    		barsVisualization = new google.visualization.ColumnChart(document.getElementById('chart'));
+    		barsVisualization.draw(data, options);
+
+    		google.visualization.events.addListener(barsVisualization, 'onmouseover', barMouseOver);
+    		google.visualization.events.addListener(barsVisualization, 'onmouseout', barMouseOut);
+		}
+
+		function barMouseOver(e) {
+    		barsVisualization.setSelection([e]);
+  		}
+
+  		function barMouseOut(e) {
+    		barsVisualization.setSelection([{'row': null, 'column': null}]);
+  		}
+
+		//funzione che crea la mappa
+		function initMap() {
+			var position = {lat: 40.9407243, lng: 3.7313894};
+			var map = new google.maps.Map(document.getElementById('map'), {
+          		zoom: 4,
+          		center: position
+        	});
+
+        	var geocoder = new google.maps.Geocoder;
+        	for(var i = 0; i < position_from_db.length; i++) {
+        		var count = position_from_db[i].count;
+        		var geolocation = position_from_db[i].geolocation;
+        		geocoder.geocode({'address': geolocation}, function(results, status) {
+					if (status === 'OK') {
+						createMarker(results[0], count, map);
+            		}
+        		});
+        	}
+		}
+
+		//funzione che crea i marker nella mappa
+		function createMarker(place, count, map) {
+			var infowindow = new google.maps.InfoWindow();
+			
+			var content = '<div><strong>' + place.address_components[2].long_name + ', ' + place.address_components[5].long_name + ', ' + place.address_components[6].long_name + '</strong>' 
+				+ '<br><br><i> Da questa città si sono collegati ' + count + ' utenti </br>';
+
+
+			var marker = new google.maps.Marker({
+				map: map,
+				position: place.geometry.location,
+				animation: google.maps.Animation.DROP,
+				title: place.address_components[2].long_name
+			});
+
+			var infowindow = new google.maps.InfoWindow({
+    			content: content
+  			});
+
+  			marker.addListener('click', function() {
+    			infowindow.open(map, marker);
+    		});
+		}
+
+		//funzione che estrapola i dati sulla posizione del mouse
+		function retrieveDataMouseFromDB(tabella, key) {
+			firebase.database().ref('/' + tabella + '/' + key + '/').once('value').then(function(snap) {
+				if(key == 'images') {
+					snap.forEach(function(child) {
+ 						child.val().forEach(function(element){
+ 							mouseImages_from_db.push(element);
+ 						});
+  					});
+				} else if(key == 'index') {
+					snap.forEach(function(child) {
+ 						child.val().forEach(function(element){
+ 							mouseIndex_from_db.push(element);
+ 						});
+  					});
+				} else {
+					snap.forEach(function(child) {
+ 						child.val().forEach(function(element){
+ 							mouseReturn_from_db.push(element);
+ 						});
+  					});
+				}
+				detailPageMouse(key);
+			});
+		}
+
+		function detailPageImages() {
+			document.getElementById("images").innerHTML = "Le opere selezionate dagli utenti sono:";
+			createTableImages();
+		}
+
+		//funzione che crea la tabella con i dati sulla selezione delle immagini
+		function createTableImages() {
+			var body = document.getElementById("table_images");
+
+			var tbl = document.createElement("table");
+			var tblBody = document.createElement("tbody");
+
+			for (var i = 0; i < images_from_db.length + 2 ; i++) {
+    			var row = document.createElement("tr");
+    			for (var j = 0; j < 2; j++) {
+    				if(i == 0 && j == 0) {
+    				} else if(i == 0 && j == 1) {
+    				} else if(i == 1 && j == 0) {
+    					var cell = document.createElement("td");
+    	  				var cellText = document.createTextNode("opera");
+    	  				cell.setAttribute("align", "middle");
+    	  				cell.setAttribute("style", "font-style: italic;");
+      					cell.appendChild(cellText);
+      					row.appendChild(cell);
+    				} else if(i == 1 && j == 1) {
+    					var cell = document.createElement("td");
+    	  				var cellText = document.createTextNode("n° di selezioni");
+    	  				cell.setAttribute("align", "middle");
+    	  				cell.setAttribute("style", "font-style: italic;");
+      					cell.appendChild(cellText);
+      					row.appendChild(cell);
+    				} else if (j == 0) {
+      					var cell = document.createElement("td");
+      					var cellText = document.createTextNode(images_from_db[i-2].opera.replace(/img./,''));
+      					cell.setAttribute("align", "middle");
+      					cell.appendChild(cellText);
+      					row.appendChild(cell);
+    				} else {
+    					var cell = document.createElement("td");
+      					var cellText = document.createTextNode(images_from_db[i-2].count);
+      					cell.setAttribute("align", "middle");
+      					cell.appendChild(cellText);
+      					row.appendChild(cell);
+    				}
+    			}
+
+    		tblBody.appendChild(row);
+  			}
+
+  			tbl.appendChild(tblBody);
+
+  			body.appendChild(tbl);
+
+  			tbl.setAttribute("border", "2");
+		}
+
+		//funzione che mostra il click-through-rate
+		function detailPageAds() {
+			var efficaciaTemp = ((ads_from_db[0].hit/ads_from_db[1].total_visualizations)*100).toString();
+			var myRegexp = /([0-9]{1}||[0-9]{2}||[0-9]{3})\.[0-9]{2}/;
+			var efficacia = myRegexp.exec(efficaciaTemp);
+			document.getElementById("ads_detail").innerHTML = "La pubblicità utilizzata nel sito ha totalizzato un'efficacia del " + efficacia[0] + "% secondo la metrica click-through rate";
+		}
+
+		//funzione che trova i quadranti dello schermo in cui si è trovato l'utente
+		function detailPageMouse(key) {
+			document.getElementById("mouse").appendChild(document.createElement('br'));
+			document.getElementById("mouse").innerHTML = "Le zone dello schermo delle pagine web tracciate sono:";
+			if(key !== undefined) {
+				var resultArray = new Array();
+				if(key == 'images') {
+					for (var i = 0; i < mouseImages_from_db.length; i++) {
+						if(mouseImages_from_db[i].count > 0) {
+							resultArrayImages.push(mouseImages_from_db[i]);
+						}
+					}
+					createTableMouse(key, resultArrayImages);
+				} else if(key == 'index') {
+					for (var i = 0; i < mouseIndex_from_db.length; i++) {
+						if(mouseIndex_from_db[i].count > 0) {
+							resultArrayIndex.push(mouseIndex_from_db[i]);
+						}
+					}
+					createTableMouse(key, resultArrayIndex);
+				} else {
+					for (var i = 0; i < mouseReturn_from_db.length; i++) {
+						if(mouseReturn_from_db[i].count > 0) {
+							resultArrayReturn.push(mouseReturn_from_db[i]);
+						}
+					}
+					createTableMouse(key, resultArrayReturn);
+				}
+			}
+		}
+
+		//funzione che crea la tabella con i dati sulla posizione del mouse
+		function createTableMouse(key, resultArray) {
+			var body = document.getElementById("table_mouse");
+
+			var tbl = document.createElement("table");
+			var tblBody = document.createElement("tbody");
+
+			for (var i = 0; i < resultArray.length + 2 ; i++) {
+    			var row = document.createElement("tr");
+    			for (var j = 0; j < 2; j++) {
+    				if(i == 0 && j == 0) {
+    					var cell = document.createElement("td");
+    					cell.setAttribute('colspan', 2);
+    					cell.setAttribute("align", "middle");
+    					cell.setAttribute("style", "font-weight: 900;");
+    	  				var cellText = document.createTextNode(key + ".html");
+      					cell.appendChild(cellText);
+      					row.appendChild(cell);
+    				} else if(i == 0 && j == 1) {
+    				} else if(i == 1 && j == 0) {
+    					var cell = document.createElement("td");
+    	  				var cellText = document.createTextNode("quadrante dello schermo");
+    	  				cell.setAttribute("align", "middle");
+    	  				cell.setAttribute("style", "font-style: italic;");
+      					cell.appendChild(cellText);
+      					row.appendChild(cell);
+    				} else if(i == 1 && j == 1) {
+    					var cell = document.createElement("td");
+    	  				var cellText = document.createTextNode("n° di posizionamenti");
+    	  				cell.setAttribute("align", "middle");
+    	  				cell.setAttribute("style", "font-style: italic;");
+      					cell.appendChild(cellText);
+      					row.appendChild(cell);
+    				} else if (j == 0) {
+      					var cell = document.createElement("td");
+      					var cellText = document.createTextNode(resultArray[i-2].block);
+      					cell.setAttribute("align", "middle");
+      					cell.appendChild(cellText);
+      					row.appendChild(cell);
+    				} else {
+    					var cell = document.createElement("td");
+      					var cellText = document.createTextNode(resultArray[i-2].count);
+      					cell.setAttribute("align", "middle");
+      					cell.appendChild(cellText);
+      					row.appendChild(cell);
+    				}
+    			}
+
+    		tblBody.appendChild(row);
+  			}
+
+  			for (var i = 0; i < 1 ; i++) {
+  				var row = document.createElement("tr");
+    			for (var j = 0; j < 2; j++) {
+    				if(i == 0 && j == 0) {
+	    				var cell = document.createElement("BUTTON");
+	    				cell.setAttribute("style", "background-color: darkturquoise;");
+      					var cellText = document.createTextNode("Clicca per vedere le zone soprastanti");
+      					cell.onclick = function() {
+      						if(key == 'images') {
+      							var queryString = "?para1=images";
+      							window.location.href = "block_screen.html" + queryString;
+      						} else if(key == 'index') {
+      							var queryString = "?para1=index";
+      							window.location.href = "block_screen.html" + queryString;
+      						} else {
+      							var queryString = "?para1=return";
+      							window.location.href = "block_screen.html" + queryString;
+      						}
+       					};
+      					cell.appendChild(cellText);
+      					row.appendChild(cell);
+      				} 
+    			}
+    		tblBody.appendChild(row);
+  			}
+
+  			tbl.appendChild(tblBody);
+
+  			var br = document.createElement("br");
+  			body.appendChild(tbl);
+  			body.appendChild(br);
+
+  			tbl.setAttribute("border", "2");
+		}
+
+    //reindirizzamento dell'utente
+	function forwardPage() {
+		window.location.href = "index.html";	
+	}
+	</script>
+	<title>Report</title>
+</head>
+<body onload="initArray()">
+<h1 align="middle">Benvenuto nella pagina di report</h1>
+<div id="ads">
+	<h4>1. Pubblicità</h4>
+	<p id="ads_detail"></p>
+</div>
+<div id="table_images">
+	<h4>2. Opere</h4>
+	<p id="images"></p>
+</div>
+<div id="table_mouse">
+	<h4>3. Zone dello schermo</h4>
+	<p id="mouse"></p>
+</div>
+	<h4>4. Localizzazione degli utenti</h4>
+<div id="map" style="width: 100%; height: 400px; background-color: grey;"></div>
+<h4>5. Affluenza dell'utenza</h4>
+<div id="chart" style="width: 100%; height: 500px;"></div>
+<br>
+<button onclick="forwardPage()">Ritorna indietro</button>
+</body>
+</html>

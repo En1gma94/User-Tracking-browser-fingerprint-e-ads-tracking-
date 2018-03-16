@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8">
+<title>Scegli le immagini</title>
+<head>
+	<script src="https://www.gstatic.com/firebasejs/4.10.0/firebase.js"></script>
+	<script>
+
+	var config = {
+    	apiKey: "AIzaSyAiWx0A9b3y0u_Q-LOnxdLq5jnJw5k4YWA",
+    	authDomain: "sistemi-intelligenti-internet.firebaseapp.com",
+    	databaseURL: "https://sistemi-intelligenti-internet.firebaseio.com",
+    	projectId: "sistemi-intelligenti-internet",
+    	storageBucket: "sistemi-intelligenti-internet.appspot.com",
+    	messagingSenderId: "503389931119"
+  	};
+  	firebase.initializeApp(config);
+
+  	var database = firebase.database();
+
+    //array dei quadranti dello schermo dell'utente
+    var local_screen_block = new Array();
+    //array dei quadranti dello schermo presenti nel db
+    var screen_block_from_db = new Array();
+    //array ottenuto dal merge dei precedenti 2 array
+    var final_screen_block = new Array();
+
+  	let url = window.location.toString();
+    var fingerprint = url.replace(/.*=/,"");
+    var contFingerprint = 0;
+  </script>
+  <script src="js/valve1.js"></script>
+  <script src="js/valve2.js"></script>
+  <script src="js/swfobject-2.2.min.js"></script>
+  <script src="js/evercookie.js"></script>
+  <script src="js/jquery-1.11.1.min.js"></script>
+  <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8.18/jquery-ui.min.js"></script>
+  <script type="text/javascript">
+    jQuery(document).ready(function($) {
+
+      $('#idtag').on('DOMSubtreeModified',function(){
+        var uid = document.getElementById('idtag').textContent;
+        if(uid != '') {
+            checkFingerprint(uid);
+          }
+        })
+    });
+  </script>
+  <script type="text/javascript">
+    
+    //funzione che calcola una stringa identificativa della scheda audio  
+    function audioFingerPrinting() {
+        try {
+            var audioContext = new (window.AudioContext || window.webkitAudioContext);
+        } catch (e) {
+            return "";
+        }
+
+        var destination = audioContext.destination;
+        var audioFingerPrinting = (audioContext.sampleRate).toString() + '_' + destination.maxChannelCount + "_" + destination.numberOfInputs + '_' + destination.numberOfOutputs + '_' + destination.channelCount + '_' + destination.channelCountMode + '_' + destination.channelInterpretation;
+        return audioFingerPrinting;
+    }
+
+    //funzione che calcola una stringa identificativa dei cores virtuali del processore
+    function virtualCoresFingerPrinting() {
+        return navigator.hardwareConcurrency || "";
+    }
+
+    //funzione che calcola una stringa identificativa dei cores virtuali del processore
+    function gpuFingerPrint() {
+        var canvas = document.createElement('canvas');
+        var webgl;
+        var debugInfo;
+        var vendor;
+        var renderer;
+        
+        try {
+            webgl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        } catch (e) {
+            return "";
+        }
+
+        if (webgl) {
+            debugInfo = webgl.getExtension('WEBGL_debug_renderer_info');
+            vendor = webgl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+            renderer = webgl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+            return vendor + '_' + renderer;
+        }
+    }
+
+    //funzione che calcola una stringa identificativa dei devices multimediali
+    function getMediaDevices() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+            return "";
+        }
+
+        navigator.mediaDevices.enumerateDevices().then(function(devices) {
+            var results = devices.map(function(device){
+                return device.kind + ":" + device.label + " id = " + device.deviceId;
+            });
+            return results.join(",");
+        })
+        .catch(function(err) {
+            return "";
+        });
+    }
+
+    //funzione che calcola una stringa identificativa basata sul rapporto tra la risoluzione dei pixel fisici e la risoluzione dei CSS pixel dello schermo corrente
+    function getPixelRatio() {
+        return window.devicePixelRatio || "";
+    }
+
+    //funzione che calcola una stringa identificativa su quale piattoforma viene eseguito il browser
+    function getPlatform() {
+        return navigator.platform || "";
+    }
+
+    //funzione che calcola una stringa identificativa sulla profondità dei bit del colore per mostrare le immagini
+    function getColorDepth() {
+        var cd = screen.colorDepth;
+        if (cd === 32) {
+           cd = 24;
+        }
+        return cd || "";
+    }
+
+    //funzione che verifica se il browser dell'utente memorizza in modo permanente i dati
+    function getIndexedDb() {
+        try {
+            return !!window.indexedDB;
+        } 
+        catch (e) {
+            return true;
+        }
+    }
+
+    //funzione che verifica se i cookie sono stati attivati nel browser
+    function isEnableCookies() {
+        return navigator.cookieEnabled;
+    }
+
+    //funzione che restituisce il fuso orario
+    function getTimezoneOffset() {
+        return new Date().getTimezoneOffset();
+    }
+
+    //funzione che verifica se nel browser è stata attivato la modalità do-not-track
+    function isDoNotTrack() {
+        var doNotTrack = navigator.doNotTrack || navigator.msDoNotTrack || window.doNotTrack || "";
+        if(doNotTrack == "unspecified") {
+            doNotTrack = "";
+        }
+        return doNotTrack;
+    }
+
+    //funzione che restituisce il sistema operativo e la lingua utilizzata dall'utente
+    function getLanguageAndOS() {
+        var userAgent = navigator.userAgent.toLowerCase();
+
+        var language = navigator.language.substring(0,2);
+
+        var os;
+        if (userAgent.indexOf('windows phone') >= 0) {
+            os = 'Windows Phone'
+        } else if (userAgent.indexOf('win') >= 0) {
+            os = 'Windows'
+        } else if (userAgent.indexOf('android') >= 0) {
+            os = 'Android'
+        } else if (userAgent.indexOf('linux') >= 0) {
+            os = 'Linux'
+        } else if (userAgent.indexOf('iphone') >= 0 || userAgent.indexOf('ipad') >= 0) {
+            os = 'iOS'
+        } else if (userAgent.indexOf('mac') >= 0) {
+            os = 'Mac'
+        } else {
+            os = 'Other'
+        }
+
+        return language  + '_' + os;
+    }
+
+    //funzione che restituisce la risoluzione dello schermo
+    function getAvailableScreenResolution() {
+      var val = (screen.availHeight > screen.availWidth) 
+                ? [screen.availHeight, screen.availWidth] 
+                : [screen.availWidth, screen.availHeight];
+      return val.join("x");
+    }
+
+    //funzione che restituisce l'hashcode a 32 bit di una stringa di input
+    String.prototype.hashCode = function() {
+        var hash = 0, i, chr;
+        if (this.length === 0) return hash;
+        for (i = 0; i < this.length; i++) {
+            chr   = this.charCodeAt(i);
+            hash  = ((hash << 5) - hash) + chr;
+            hash |= 0;
+        }
+        return hash;
+    };
+
+    //funzione che restituisce il fingerprint cross-browser
+    function crossBrowserFingerPrint() {
+        var crossBrowserString = audioFingerPrinting() + '_' + virtualCoresFingerPrinting() + '_' + gpuFingerPrint() + '_' + getAvailableScreenResolution() + '_' + getPixelRatio() + '_' + getColorDepth() + '_' + getTimezoneOffset() + '_' + getPlatform() + '_' + getMediaDevices() + '_' + getIndexedDb() + '_' + isEnableCookies() + '_' + isDoNotTrack() + '_' + getLanguageAndOS();
+        var crossBrowserFingerPrint = crossBrowserString.hashCode();
+        return crossBrowserFingerPrint;
+    }
+
+    //calcolo dei vari fingerprint con cui può essere tracciato l'utente
+    getFingerPrint('valve1'); 
+    getFingerPrint('valve2');
+    getFingerPrint('evercookie');
+    getFingerPrint('pixel');
+    getFingerPrint('cross-browser');
+
+    //controllo se il fingerprint calcolato in precedenza è presente nel database    
+    function checkFingerprint(userFingerprint) {
+      if(userFingerprint.toString() == fingerprint && userFingerprint !== undefined) {
+        firebase.database().ref('/users/' + userFingerprint).once('value').then(function(snapshot) {
+          if(snapshot.val() == null && contFingerprint == 5) {
+            window.location.href = "error.html";
+          }
+        });
+      } else {
+        contFingerprint++;
+      }
+    }
+
+    //restituisce i fingerprint delle varie tecniche e in base al momento dell'invocazione di tale funzione avviene il controllo o il salvataggio dei dati
+    function getFingerPrint(tecnica) {
+      if(tecnica == 'valve1') {
+        var valve1 = new Fingerprint();
+        return checkFingerprint(valve1.get());
+      } else if (tecnica == 'valve2') {
+        new Fingerprint2().get(function(valve2Fingerprint, components) {
+          return checkFingerprint(valve2Fingerprint);
+        });
+      } else if(tecnica == 'pixel') {
+        var pixelRGB = localStorage.getItem("pixel");
+        if (pixelRGB != null) {
+          return checkFingerprint(pixelRGB);
+        }
+      } else if (tecnica == 'cross-browser') {
+        var cross_browser = crossBrowserFingerPrint();
+        return checkFingerprint(cross_browser);
+      } else {
+        var ec = new evercookie();
+        var val = '' + Math.floor(Math.random() * 10000000000);
+
+          function getCookie(dont) {
+            ec.get("uid", function(best, all) {
+              document.getElementById('idtag').innerHTML = best;
+              var txt = document.getElementById('cookies');
+              txt.innerHTML = '';
+              for (var item in all)
+                txt.innerHTML += item + ' mechanism: ' + (val == all[item] ? '<b>' + all[item] + '</b>' : all[item]) + '<br>';
+              if (!dont)
+                getCookie(1);
+            }, dont);
+          }
+          setTimeout(getCookie, 300);
+        }
+      }
+
+    //array delle opere selezionate dall'utente
+    var opereSelezionate = new Array();
+    //array delle opere presenti nel db
+    var opere_from_db = new Array();
+    //array ottenuto dal merge dei precedenti 2 array
+    var final_opere_from_db = new Array();
+
+    function selectImage(nome) {
+      if(!imageIsPresentOnOpereSelezionate(nome)) {
+        opereSelezionate.push(nome);        
+      }
+    }
+
+    //funzione che recupera i dati sulle immagini dal db
+    function recoveryImageFromDB() {
+      firebase.database().ref('/images/').once('value').then(function(snapshot) {
+        if(snapshot.val() != null) {
+          snapshot.forEach(function(child) {
+            for (var i = 0; i < child.val().length; i++) {
+              var opera = child.val()[i].opera;
+              var count = parseInt(child.val()[i].count);
+            
+              var index = {
+                opera: opera,
+                count: count
+              }
+              opere_from_db.push(index);
+            }
+            firebase.database().ref('/images/' + child.key).remove(function (error) {
+              if (!error) {
+                updateChoiseOpere();
+              }
+            });
+          });
+        } else {
+          updateChoiseOpere();
+        }
+      });
+    }
+
+    //funziona che effettua il merge tra l'array delle immagini del db e quello delle immagini selezionate dall'utente
+    function updateChoiseOpere() {
+      var len = opereSelezionate.lenght;
+      if(len == 0) {
+        for (var i = 0; i < opere_from_db.length; i++) {
+          final_opere_from_db.push(opere_from_db[i]);
+        }
+      } else {
+        for (var i = 0; i < opereSelezionate.length; i++) {
+          if(imageIsPresentOnDB(opereSelezionate[i])) {
+            var countTemp = opere_from_db[i].count+1;
+            var index = {
+              opera: opereSelezionate[i],
+              count: countTemp
+            }
+            final_opere_from_db.push(index);
+          } else {
+            var index = {
+              opera: opereSelezionate[i],
+              count: 1
+            }
+            final_opere_from_db.push(index);
+          }
+        }
+        for (var i = 0; i < opere_from_db.length; i++) {
+          if(!imageIsPresentOnOpereSelezionate(opere_from_db[i].opera)) {
+            final_opere_from_db.push(opere_from_db[i]);
+          }
+        }
+      }
+    storeImagePreferencesOnDB();
+  }
+
+    //funzione che salva l'array finale delle opere nel db
+    function storeImagePreferencesOnDB() {
+      let ref = firebase.database().ref('images/');
+      ref.push(final_opere_from_db, function(error) {
+        firebase.database().ref('users/' + fingerprint).update({
+          timestamp: new Date().toString(),
+          tempoFine: new Date().getTime()
+        });
+        storeInfoUserOnDB();
+      });
+    }
+
+    //funzione che verifica se l'opera selezionate dall'utente era già stata selezionata in precedenza
+    function imageIsPresentOnOpereSelezionate(opera) {
+      for (var i = 0; i < opereSelezionate.length; i++) {
+        if(opereSelezionate[i] == opera){
+          return true;
+        }
+      }
+      return false;
+    }
+
+    //funzione che verifica la presenza di una determinante opera nel db
+    function imageIsPresentOnDB(opera) {
+      for (var i = 0; i < opere_from_db.length; i++) {
+        if(opere_from_db[i].opera == opera){
+          return true;
+        }
+      }
+      return false;
+    }
+
+    //funzione che salva le opere nel db
+    function storeImageOnDB() {
+      let ref = firebase.database().ref('users/'+ fingerprint + '/immagini');
+        ref.push(opereSelezionate, function(error) {
+          recoveryImageFromDB();
+        });
+    }
+
+    //funzione che estrapola e salva nel db le informazioni dell'utente
+    function storeInfoUserOnDB() {
+      var userAgent = navigator.userAgent.toLowerCase();
+
+      var browser;
+      if (userAgent.indexOf('firefox') >= 0) {
+        browser = 'Firefox'
+      } else if (userAgent.indexOf('opera') >= 0 || userAgent.indexOf('opr') >= 0) {
+        browser = 'Opera'
+      } else if (userAgent.indexOf('chrome') >= 0) {
+        browser = 'Chrome'
+      } else if (userAgent.indexOf('safari') >= 0) {
+        browser = 'Safari'
+      } else if (userAgent.indexOf('trident') >= 0) {
+        browser = 'Internet Explorer'
+      } else {
+        browser = 'Other'
+      }
+
+      var os;
+      if (userAgent.indexOf('windows phone') >= 0) {
+        os = 'Windows Phone'
+      } else if (userAgent.indexOf('win') >= 0) {
+        os = 'Windows'
+      } else if (userAgent.indexOf('android') >= 0) {
+        os = 'Android'
+      } else if (userAgent.indexOf('linux') >= 0) {
+        os = 'Linux'
+      } else if (userAgent.indexOf('iphone') >= 0 || userAgent.indexOf('ipad') >= 0) {
+        os = 'iOS'
+      } else if (userAgent.indexOf('mac') >= 0) {
+        os = 'Mac'
+      } else {
+        os = 'Other'
+      }
+
+      var language;
+      if (navigator.language.indexOf('it') >= 0) {
+        language = 'italiano'
+      } else if (navigator.language.indexOf('en') >= 0) {
+        language = 'inglese'
+      }
+
+      var connection;
+      if (navigator.connection === undefined) {
+        connection = 'sconosciuta';
+      } else {
+        connection = navigator.connection.effectiveType;
+      }
+
+      firebase.database().ref('users/' + fingerprint + '/info').update({
+        connection: connection,
+        browser: browser,
+        operating_system: os,
+        language: language
+      });
+      
+      firebase.database().ref('/mouse/images/').once('value').then(function(snapshot) {
+        snapshot.forEach(function(child) {
+          firebase.database().ref('/mouse/images/' + child.key).remove(function (error) {
+            if (!error) {
+              updateScreenBlock();
+            }
+          });
+        });
+      });
+    }
+
+    //reindirizzamento dell'utente
+    function forwardPage() {
+    	var queryString = "?para1=" + fingerprint;
+        window.location.href = "return.html" + queryString; 
+    }
+  	</script>
+  <script type="text/javascript">
+
+    //restituisce la risoluzione dello schermo dell'utente
+    function getScreenDimension() {
+      var size;
+      if (window.innerHeight > window.innerWidth) {
+          size = {
+            width: window.innerWidth || document.body.clientWidth,
+            height: window.innerHeight || document.body.clientHeight
+          }
+      }
+      else {
+          size = {
+            width: window.innerHeight || document.body.clientHeight,
+            height: window.innerWidth || document.body.clientWidth
+          }
+      }
+      return size;  
+    }
+
+    var dim = getScreenDimension();
+
+    //funzione che suddivide lo schermo in quadranti
+    function createGrid() {
+      var index;
+      var as, bs, ad, bd;
+      for (var i = 0; i<dim.width; i = i+50) {
+        for (var j = 0; j<dim.height; j = j+50) {
+          var temp1 = i+50;
+          var temp2 = j+50;
+          index = {
+            block: "as("+i+","+j+") bs("+i+","+temp2+") bd("+temp1+","+temp2+") ad("+temp1+","+j+")",
+            count: 0
+          }
+          local_screen_block.push(index);
+        }
+      }
+    
+      firebase.database().ref('/mouse/images/').once('value').then(function(snapshot) {
+        if(snapshot.val() != null) {
+          snapshot.forEach(function(child) {
+            for (var i = 0; i < child.val().length; i++) {
+              var block = child.val()[i].block;
+              var count = parseInt(child.val()[i].count);
+            
+              var index = {
+                block: block,
+                count: count
+              }
+              screen_block_from_db.push(index);
+            }
+          });
+          getFinalScreenBlock();
+        } else {
+          pushScreenBlockOnLoad();
+        }
+      });
+    }
+
+    //funzione che effettua il merge tra l'array dei quadranti presenti nel db e quelli dello schermo dell'utente 
+    function getFinalScreenBlock() {
+      if(screen_block_from_db.length < local_screen_block.length) {
+        for (var i = 0; i < local_screen_block.length; i++) {
+          if(isPresentOnDB(local_screen_block[i].block)) {
+            var index = {
+              block: screen_block_from_db[i].block,
+              count: screen_block_from_db[i].count
+            }
+            final_screen_block.push(index);
+          } else {
+            var index = {
+              block: local_screen_block[i].block,
+              count: 0
+            }
+            final_screen_block.push(index);
+          }
+        }
+      } else {
+        for (var i = 0; i < screen_block_from_db.length; i++) {
+          final_screen_block.push(screen_block_from_db[i]);
+        }
+      }
+    }
+
+    //funzione che verifica la presenza di un determinato quadrante nel db
+    function isPresentOnDB(blockOnScreen) {
+      for (var i = 0; i < screen_block_from_db.length; i++) {
+        if(screen_block_from_db[i].block == blockOnScreen){
+          return true;
+        }
+      }
+      return false;
+    }
+
+    //memorizzazione dell'array di merge nel db
+    function pushScreenBlockOnLoad() {
+      let ref = firebase.database().ref('mouse/images/');
+      ref.push(local_screen_block, function(error) {
+        if (!error) {
+          getFinalScreenBlock();
+        }
+      });
+    }
+
+    createGrid();
+  </script>
+    <script>
+
+  var m_pos_x,m_pos_y;
+  window.onmousemove = function(e) { m_pos_x = e.pageX;m_pos_y = e.pageY; }
+  setInterval(function() { getPosition(m_pos_x,m_pos_y); },3000);
+  
+  //individuazione del quadrante in cui il mouse dell'utente si trova
+  function getPosition(x,y) {
+    var as, bs, ad, bd;
+    var cont = 0;
+    var index;
+    for (var i = 0; i<dim.width; i = i+50) {
+      for (var j = 0; j<dim.height; j = j+50) {
+        var temp1 = i+50;
+        var temp2 = j+50;
+        if ((x<i+50 && x>=i) && (y<j+50 && y>=j)) {
+          index = "as("+i+","+j+") bs("+i+","+temp2+") bd("+temp1+","+temp2+") ad("+temp1+","+j+")";
+          checkBlock(index);
+        }
+      }
+    }
+  }
+
+  //funzione che incrementa il contatore di un determinato quadrante
+  function checkBlock(index) {
+    for (var i = 0; i < final_screen_block.length; i++) {
+      if(final_screen_block[i].block == index){
+        final_screen_block[i].count++; 
+      }
+    }
+  }
+
+  //funzione che aggiorna l'array dei quadranti nel db
+  function updateScreenBlock() {
+    let ref = firebase.database().ref('mouse/images/');
+    ref.push(final_screen_block, function(error) {
+      if (!error) {
+        forwardPage();
+      }
+    });
+  }
+</script>
+</head>
+<body>
+  <h1 align="middle">
+  <button onclick="storeImageOnDB()" style="float: left;">Ritorna alla home</button>
+  Scegli le opere che più ti piacciono</h1>
+  <div id="img" align="center">
+    <img id="1" src="img/assenzio_degas.jpg" name="img/assenzio_degas.jpg" alt="Assenzio - Degas" height="200" width="200" border="5" onclick="selectImage(this.name);document.getElementById('1').style.borderColor='red';">
+    <img id="2" src="img/bacio_klimt.jpg" name="img/bacio_klimt.jpg" alt="Bacio - Klimt" height="200" width="200" border="5" onclick="selectImage(this.name);document.getElementById('2').style.borderColor='red';">
+    <img id="3" src="img/marilyn_monroe_warhol.jpg" name="img/marilyn_monroe_warhol.jpg" alt="Marilyn Monroe - Warhol" height="200" width="200" border="5" onclick="selectImage(this.name);document.getElementById('3').style.borderColor='red';">
+    <img id="4" src="img/composizione_VII_kandinsky.jpg" name="img/composizione_VII_kandinsky.jpg" alt="Composizione VII - Kandinsky" height="200" width="200" border="5" onclick="selectImage(this.name);document.getElementById('4').style.borderColor='red';">
+    <img id="5" src="img/creazione_di_adamo_michelangelo.jpg" name="img/creazione_di_adamo_michelangelo.jpg" alt="Creazione di Adamo - Michelangelo" height="200" width="200" border="5" onclick="selectImage(this.name);document.getElementById('5').style.borderColor='red';">
+    <img id="6" src="img/guernica_picasso.jpg" name="img/guernica_picasso.jpg" alt="Guernica - Picasso" height="200" width="200" border="5" onclick="selectImage(this.name);document.getElementById('6').style.borderColor='red';">
+    <img id="7" src="img/impressione_sol_levante_monet.jpg" name="img/impressione_sol_levante_monet.jpg" alt="Impressione sol levante - Monet" height="200" width="200" border="5" onclick="selectImage(this.name);document.getElementById('7').style.borderColor='red';">
+    <img id="8" src="img/l'urlo_munch.jpg" name="img/l'urlo_munch.jpg" alt="L'urlo - Munch" height="200" width="200" border="5" onclick="selectImage(this.name);document.getElementById('8').style.borderColor='red';">
+    <img id="9" src="img/monalisa_leonardo.jpg" name="img/monalisa_leonardo.jpg" alt="Monalisa - Leonardo" height="200" width="200" border="5" onclick="selectImage(this.name);document.getElementById('9').style.borderColor='red';">
+    <img id="10" src="img/nascita_di_venere_botticelli.jpg" name="img/nascita_di_venere_botticelli.jpg" alt="Nascita di venere - Botticelli" height="200" width="200" border="5" onclick="selectImage(this.name);document.getElementById('10').style.borderColor='red';">
+    <img id="11" src="img/notte_stellata_van_gogh.jpg" name="img/notte_stellata_van_gogh.jpg" alt="Notte stellata - Van Gogh" height="200" width="200" border="5" onclick="selectImage(this.name);document.getElementById('11').style.borderColor='red';">
+    <img id="12" src="img/parlamento_di_londra_monet.jpg" name="img/parlamento_di_londra_monet.jpg" alt="Parlamento di Londra - Monet" height="200" width="200" border="5" onclick="selectImage(this.name);document.getElementById('12').style.borderColor='red';">
+    <img id="13" src="img/persistenza_della_memoria_dali.jpg" name="img/persistenza_della_memoria_dali.jpg" alt="Persistenza della memoria - Dali" height="200" width="200" border="5" onclick="selectImage(this.name);document.getElementById('13').style.borderColor='red';">
+    <img id="14" src="img/rissa_in_galleria_boccioni.jpg" name="img/rissa_in_galleria_boccioni.jpg" alt="Rissa in galleria - Boccioni" height="200" width="200" border="5" onclick="selectImage(this.name);document.getElementById('14').style.borderColor='red';">
+    <img id="15" src="img/viandante_sul_mare_di_nebbia_friedrich.jpg" name="img/viandante_sul_mare_di_nebbia_friedrich.jpg" alt="Viandante sul mare di nebbia - Friedrich" height="200" width="200" border="5" onclick="selectImage(this.name);document.getElementById('15').style.borderColor='red';">
+  </div>
+  <span id='idtag' style="display: none;"></span>
+  <div id='cookies' style="display: none;"></div>
+</body>
+</html>
